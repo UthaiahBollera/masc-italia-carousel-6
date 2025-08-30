@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Full-Page Slider</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        /* Custom styles for the 3D slider effect */
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #111827; /* bg-gray-900 */
+            color: #f3f4f6; /* text-gray-100 */
+            overflow: hidden; /* Prevent scrollbars */
+        }
+
+        .slider-container {
+            perspective: 1500px; /* Creates the 3D space */
+            width: 100%;
+            height: 100%;
+            position: relative;
+        }
+
+        .slider-wrapper {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            transform-style: preserve-3d; /* Enables 3D positioning for children */
+            transition: transform 0.8s cubic-bezier(0.77, 0, 0.175, 1);
+        }
+
+        .slide {
+            position: absolute;
+            left: 0;
+            right: 0;
+            margin: auto;
+            width: 50%;
+            height: 60%;
+            top: 20%;
+            border-radius: 1rem;
+            overflow: hidden;
+            background-size: cover;
+            background-position: center;
+            transition: transform 0.8s cubic-bezier(0.77, 0, 0.175, 1), opacity 0.8s ease, filter 0.8s ease;
+            -webkit-box-reflect: below 15px linear-gradient(transparent 50%, rgba(255, 255, 255, 0.15));
+            filter: brightness(0.7);
+            cursor: pointer;
+        }
+
+        /* Initial state for the entrance animation */
+        .slide.is-loading {
+            opacity: 0;
+            transform: translateY(100px) scale(0.8);
+        }
+
+        footer {
+            transition: opacity 0.8s ease-in-out, transform 0.8s ease-in-out;
+        }
+
+        footer.is-loading {
+            opacity: 0;
+            transform: translateY(30px);
+        }
+
+        /* Drawer Styles */
+        .drawer {
+            position: fixed;
+            top: 0;
+            right: -100%; /* Start off-screen */
+            width: 100%;
+            max-width: 400px; /* Max width of the drawer */
+            height: 100%;
+            background-color: #1f2937; /* bg-gray-800 */
+            z-index: 100;
+            transition: right 0.6s cubic-bezier(0.77, 0, 0.175, 1);
+            box-shadow: -10px 0 30px rgba(0,0,0,0.3);
+        }
+
+        .drawer.is-open {
+            right: 0; /* Slide in */
+        }
+    </style>
+</head>
+<body class="w-full h-screen flex flex-col items-center justify-center">
+
+    <!-- Main Slider Component -->
+    <main class="w-full h-full flex items-center justify-center">
+        <div id="slider-container" class="slider-container">
+            <div id="slider-wrapper" class="slider-wrapper">
+                <!-- Slides will be injected here by JavaScript -->
+            </div>
+        </div>
+    </main>
+
+    <!-- Footer Controls and Info -->
+    <footer class="absolute bottom-0 z-20 w-full py-8 is-loading">
+        <div class="container mx-auto px-6 flex flex-col items-center justify-center text-center">
+            <div id="slide-info" class="mb-6 transition-opacity duration-500">
+                <h2 id="slide-title" class="text-3xl md:text-4xl font-bold text-white"></h2>
+                <p id="slide-description" class="text-base text-gray-400 mt-2 max-w-lg"></p>
+            </div>
+
+            <div class="flex items-center justify-center w-full max-w-sm">
+                <button id="prev-btn" class="p-2 text-gray-400 hover:text-white transition-colors duration-300">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" /></svg>
+                </button>
+                <div class="flex-grow mx-4 flex items-center justify-center">
+                    <div class="w-full bg-gray-700/50 rounded-full h-1.5 relative">
+                        <div id="progress-bar" class="bg-white h-1.5 rounded-full transition-all duration-500"></div>
+                    </div>
+                    <span id="slide-counter" class="text-sm ml-4 font-mono text-gray-300"></span>
+                </div>
+                <button id="next-btn" class="p-2 text-gray-400 hover:text-white transition-colors duration-300">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" /></svg>
+                </button>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Drawer Component -->
+    <div id="drawer" class="drawer">
+        <div class="p-6 h-full overflow-y-auto">
+            <button id="close-drawer-btn" class="absolute top-4 right-4 text-gray-400 hover:text-white transition-colors">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+            </button>
+            <div id="drawer-content" class="mt-12">
+                <!-- Drawer content will be injected here -->
+            </div>
+        </div>
+    </div>
+
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // --- DATA ---
+            const slidesData = [
+                {
+                    imageUrl: 'https://plus.unsplash.com/premium_photo-1715639312136-56a01f236440?q=80&w=1714&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D',
+                    title: 'The Future is Electric',
+                    description: 'Building the charging infrastructure for a sustainable tomorrow.',
+                    details: 'Our comprehensive charging solutions cater to both public and private sectors, ensuring seamless integration and reliability. We focus on smart grid technology to optimize energy consumption and provide a scalable network for the growing demand of electric vehicles.',
+                    services: ['Public Charging Stations', 'Home Charging Solutions', 'Fleet Management', 'Smart Grid Integration']
+                },
+                {
+                    imageUrl: 'https://images.unsplash.com/photo-1615901555268-839b7a1ede54?q=80&w=2062&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D',
+                    title: 'Sleek and Silent Power',
+                    description: 'Experience the thrill of electric vehicles with zero emissions.',
+                    details: 'Our latest line of electric vehicles combines cutting-edge technology with luxurious design. Enjoy instant torque, a silent ride, and state-of-the-art autonomous driving features, all while contributing to a cleaner environment.',
+                    services: ['Vehicle Sales & Leasing', 'Test Drives', 'Customization Options', 'After-Sales Support']
+                },
+                {
+                    imageUrl: 'https://plus.unsplash.com/premium_photo-1661935334659-a4f95e515c3b?q=80&w=1722&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D',
+                    title: 'Heavy Duty, Light Footprint',
+                    description: 'Electric trucks are revolutionizing the logistics industry.',
+                    details: 'We provide powerful and efficient electric trucks designed for commercial use. With long-range batteries and rapid charging capabilities, our trucks reduce operational costs and carbon emissions for businesses of all sizes.',
+                    services: ['Commercial Fleet Sales', 'Logistics Solutions', 'Battery Swapping Tech', 'Maintenance Contracts']
+                },
+                {
+                    imageUrl: 'https://plus.unsplash.com/premium_photo-1733342421852-3bce709563e4?q=80&w=2064&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D',
+                    title: 'Hydrogen: The Next Frontier',
+                    description: 'Exploring clean energy solutions with hydrogen-powered trucks.',
+                    details: 'As pioneers in hydrogen fuel cell technology, we offer a glimpse into the future of heavy transport. Our hydrogen trucks provide longer range and faster refueling times compared to their battery-electric counterparts, making them ideal for long-haul routes.',
+                    services: ['Hydrogen Fuel Cell Trucks', 'Refueling Infrastructure', 'R&D Partnerships', 'Consulting Services']
+                },
+                {
+                    imageUrl: 'https://images.unsplash.com/photo-1648594756894-151b3eb89400?q=80&w=1006&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D',
+                    title: 'Engineering Masterpieces',
+                    description: 'Where cutting-edge design meets breathtaking performance.',
+                    details: 'Our supercars are the pinnacle of automotive engineering. Each vehicle is a hand-crafted work of art, built with lightweight materials and powered by engines that deliver an unparalleled driving experience. This is the ultimate expression of speed and style.',
+                    services: ['Bespoke Vehicle Commissions', 'Track Day Experiences', 'Performance Tuning', 'Exclusive Owner Events']
+                },
+                {
+                    imageUrl: 'https://plus.unsplash.com/premium_photo-1677993185892-f7823f314c4c?q=80&w=774&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D',
+                    title: 'The Art of Speed',
+                    description: 'Unleashing raw power in an exquisitely crafted machine.',
+                    details: 'We push the boundaries of what\'s possible, creating hypercars that are as fast as they are beautiful. Aerodynamics, power-to-weight ratio, and driver engagement are at the core of our design philosophy.',
+                    services: ['Limited Edition Models', 'Collector Services', 'Aerodynamic Upgrades', 'Driving Academies']
+                },
+                {
+                    imageUrl: 'https://images.unsplash.com/photo-1592198084033-aade902d1aae?q=80&w=1740&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D',
+                    title: 'Iconic Automotive Design',
+                    description: 'A timeless silhouette that commands attention on every road.',
+                    details: 'Our design language is a blend of heritage and modernity. We create cars that are instantly recognizable and destined to become classics. Every curve and line serves a purpose, contributing to both aesthetics and performance.',
+                    services: ['Classic Car Restoration', 'Design Consultation', 'Merchandise & Apparel', 'Automotive Photography']
+                },
+                {
+                    imageUrl: 'https://images.unsplash.com/photo-1596731498067-99aeb581d3d7?q=80&w=1740&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D',
+                    title: 'Powering Up Your Journey',
+                    description: 'Convenient and fast charging to keep you on the move.',
+                    details: 'Our network of rapid chargers is expanding daily, making it easier than ever to own an electric vehicle. With our intuitive mobile app, you can find available stations, monitor your charging session, and handle payments with ease.',
+                    services: ['Rapid Charger Network', 'Mobile App Integration', 'Subscription Plans', '24/7 Customer Support']
+                }
+            ];
+
+            // --- DOM ELEMENTS ---
+            const sliderWrapper = document.getElementById('slider-wrapper');
+            const prevBtn = document.getElementById('prev-btn');
+            const nextBtn = document.getElementById('next-btn');
+            const slideTitle = document.getElementById('slide-title');
+            const slideDescription = document.getElementById('slide-description');
+            const slideCounter = document.getElementById('slide-counter');
+            const progressBar = document.getElementById('progress-bar');
+            const slideInfo = document.getElementById('slide-info');
+            const footer = document.querySelector('footer');
+            const drawer = document.getElementById('drawer');
+            const drawerContent = document.getElementById('drawer-content');
+            const closeDrawerBtn = document.getElementById('close-drawer-btn');
+
+            // --- STATE ---
+            let currentIndex = 0;
+            let slides = [];
+
+            // --- FUNCTIONS ---
+
+            function createSlides() {
+                sliderWrapper.innerHTML = '';
+                slidesData.forEach((data, index) => {
+                    const slide = document.createElement('div');
+                    slide.className = 'slide is-loading';
+                    slide.style.backgroundImage = `url('${data.imageUrl}')`;
+                    slide.dataset.index = index;
+                    sliderWrapper.appendChild(slide);
+                });
+                slides = document.querySelectorAll('.slide');
+                addSlideClickListeners();
+            }
+
+            function updateSlider() {
+                slides.forEach((slide, index) => {
+                    if (slide.classList.contains('is-loading')) { return; }
+                    const offset = index - currentIndex;
+                    const absOffset = Math.abs(offset);
+
+                    let transform = '';
+                    if (offset === 0) {
+                        transform = `translateX(0) translateZ(0) rotateY(0deg) scale(1)`;
+                        slide.style.opacity = '1';
+                        slide.style.filter = 'brightness(1)';
+                        slide.style.pointerEvents = 'auto';
+                    } else if (offset === 1 || offset === -1) {
+                        const direction = Math.sign(offset);
+                        transform = `translateX(${direction * 40}%) translateZ(-250px) rotateY(${-direction * 45}deg) scale(0.9)`;
+                        slide.style.opacity = '0.6';
+                        slide.style.filter = 'brightness(0.5)';
+                        slide.style.pointerEvents = 'none';
+                    } else {
+                        const direction = Math.sign(offset);
+                        transform = `translateX(${direction * 50}%) translateZ(-500px) rotateY(${-direction * 50}deg) scale(0.8)`;
+                        slide.style.opacity = '0';
+                        slide.style.filter = 'brightness(0.3)';
+                        slide.style.pointerEvents = 'none';
+                    }
+                    
+                    slide.style.transform = transform;
+                    slide.style.zIndex = slidesData.length - absOffset;
+                });
+
+                slideInfo.style.opacity = '0';
+                setTimeout(() => {
+                    const currentSlideData = slidesData[currentIndex];
+                    slideTitle.textContent = currentSlideData.title;
+                    slideDescription.textContent = currentSlideData.description;
+                    slideCounter.textContent = `${String(currentIndex + 1).padStart(2, '0')}/${String(slidesData.length).padStart(2, '0')}`;
+                    progressBar.style.width = `${((currentIndex + 1) / slidesData.length) * 100}%`;
+                    slideInfo.style.opacity = '1';
+                }, 400);
+            }
+
+            function nextSlide() {
+                currentIndex = (currentIndex + 1) % slidesData.length;
+                updateSlider();
+            }
+
+            function prevSlide() {
+                currentIndex = (currentIndex - 1 + slidesData.length) % slidesData.length;
+                updateSlider();
+            }
+
+            function openDrawer(index) {
+                const data = slidesData[index];
+                drawerContent.innerHTML = `
+                    <h3 class="text-2xl font-bold text-white mb-2">${data.title}</h3>
+                    <p class="text-gray-300 mb-6">${data.details}</p>
+                    <h4 class="text-lg font-semibold text-white mb-3">Services Offered</h4>
+                    <ul class="space-y-2">
+                        ${data.services.map(service => `
+                            <li class="flex items-center text-gray-300">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-3 text-blue-400" viewBox="0 0 20 20" fill="currentColor">
+                                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
+                                </svg>
+                                ${service}
+                            </li>
+                        `).join('')}
+                    </ul>
+                `;
+                drawer.classList.add('is-open');
+            }
+
+            function closeDrawer() {
+                drawer.classList.remove('is-open');
+            }
+
+            function addSlideClickListeners() {
+                slides.forEach((slide) => {
+                    slide.addEventListener('click', () => {
+                        const slideIndex = parseInt(slide.dataset.index);
+                        if (slideIndex === currentIndex) {
+                            openDrawer(slideIndex);
+                        }
+                    });
+                });
+            }
+
+            // --- EVENT LISTENERS ---
+            nextBtn.addEventListener('click', nextSlide);
+            prevBtn.addEventListener('click', prevSlide);
+            closeDrawerBtn.addEventListener('click', closeDrawer);
+            
+            window.addEventListener('keydown', (e) => {
+                if (e.key === 'ArrowRight') nextSlide();
+                else if (e.key === 'ArrowLeft') prevSlide();
+                else if (e.key === 'Escape') closeDrawer();
+            });
+            
+            // --- INITIALIZATION ---
+            function init() {
+                createSlides();
+                
+                setTimeout(() => {
+                    slides.forEach((slide, index) => {
+                        setTimeout(() => {
+                            slide.classList.remove('is-loading');
+                        }, index * 100);
+                    });
+
+                    setTimeout(() => {
+                        footer.classList.remove('is-loading');
+                    }, slides.length * 100);
+
+                    updateSlider();
+                }, 200);
+            }
+
+            init();
+        });
+    </script>
+</body>
+</html>
